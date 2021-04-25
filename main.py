@@ -2,6 +2,7 @@
 from flask import Flask, request
 import logging
 import sqlite3
+import random
 # библиотека, которая нам понадобится для работы с JSON
 import json
 
@@ -80,11 +81,18 @@ def start_game(user_id):
     }
 
 
+def check_answer(words, index, req):
+    if req['request']['original_utterance'] == words[index][1]:
+        return True
+    return False
+
+
 def change_buttons(words, user_id, index):
+    random_buttons = random.shuffle([words[index][1:]])
     sessionStorage[user_id] = {
         'suggests': [
-            "Первый вариант правильный.",
-            'Второй вариант правильный.'
+            random_buttons[0],
+            random_buttons[1]
         ]
     }
 
