@@ -16,9 +16,9 @@ import json
 app = Flask(__name__)
 STARTED_GAME = False
 WAITING_FOR_ANSWER = False
+WAITING_FOR_CHOOSE_DIFFICULTY = False
 GAME_WORDS = []
-GAME_WORD1 = ''
-GAME_WORD2 = ''
+FIRST_ANSWER = False
 WORD_INDEX = 0
 COUNT = 0
 
@@ -67,13 +67,22 @@ def main():
     return json.dumps(response)
 
 
-def start_game(user_id):
+def start_game(user_id, difficult):
     global GAME_WORDS
     connection = sqlite3.connect('data/words.db')
     cursor = connection.cursor()
-    words = cursor.execute("""SELECT * FROM words ORDER BY RANDOM() LIMIT 10""").fetchall()
-    GAME_WORDS = [word for word in words]
-    change_buttons(GAME_WORDS, user_id, WORD_INDEX, start_flag=True)
+    if difficult == 'easy':
+        words = cursor.execute("""SELECT * FROM words ORDER BY RANDOM() LIMIT 10""").fetchall()
+        GAME_WORDS = [word for word in words]
+        change_buttons(GAME_WORDS, user_id, WORD_INDEX, start_flag=True)
+    elif difficult == 'medium':
+        words = cursor.execute("""SELECT * FROM words ORDER BY RANDOM() LIMIT 20""").fetchall()
+        GAME_WORDS = [word for word in words]
+        change_buttons(GAME_WORDS, user_id, WORD_INDEX, start_flag=True)
+    else:
+        words = cursor.execute("""SELECT * FROM words ORDER BY RANDOM() LIMIT 30""").fetchall()
+        GAME_WORDS = [word for word in words]
+        change_buttons(GAME_WORDS, user_id, WORD_INDEX, start_flag=True)
 
 
 def check_answer(words, index, req, start_flag=False):
@@ -93,10 +102,16 @@ def random_words(words, index):
     return temp[::]
 
 
-def change_buttons(words, user_id, index, start_flag=False):
+def change_buttons(words, user_id, index, start_flag=False, flag_difficulty=False):
     global sessionStorage, GAME_WORDS
     print(words)
-    if not start_flag:
+    if flag_difficulty:
+        sessionStorage[user_id] = {
+            'suggests': [
+                'Легкая.', 'Средняя.', 'Сложная.', 'Выйти из игры.'
+            ]
+        }
+    elif not start_flag:
         temp = [*words[index][1:]]
         random.shuffle(temp)
         random_buttons = temp[::]
@@ -116,14 +131,22 @@ def change_buttons(words, user_id, index, start_flag=False):
 
 
 def handle_dialog(req, res):
-    global STARTED_GAME, WAITING_FOR_ANSWER, WORD_INDEX, COUNT
+    global STARTED_GAME, WAITING_FOR_ANSWER, WORD_INDEX, COUNT, FIRST_ANSWER, WAITING_FOR_CHOOSE_DIFFICULTY, GAME_WORDS
     user_id = req['session']['user_id']
 
     if req['session']['new']:
+        STARTED_GAME = False
+        WAITING_FOR_ANSWER = False
+        WAITING_FOR_CHOOSE_DIFFICULTY = False
+        GAME_WORDS = []
+        FIRST_ANSWER = False
+        WORD_INDEX = 0
+        COUNT = 0
         # Это новый пользователь.
         # Инициализируем сессию и поприветствуем его.
         # Запишем подсказки, которые мы ему покажем в первый раз
         # Заполняем текст ответа
+
         res['response'][
             'text'] = 'Привет! Ты попал на орфоэпическую игру и твоя задача как можно' \
                       ' больше раз угадать правильное произношение слов. Ты готов?'
@@ -139,21 +162,68 @@ def handle_dialog(req, res):
     # Если он написал 'ладно', 'куплю', 'покупаю', 'хорошо',
     # то мы считаем, что пользователь согласился.
     # Подумайте, всё ли в этом фрагменте написано "красиво"?
+    if WAITING_FOR_CHOOSE_DIFFICULTY:
+        if req['request']['original_utterance'] == 'Легкая.':
+            start_game(user_id, 'easy')
+            words = random_words(GAME_WORDS, WORD_INDEX)
+            res['response']['text'] = f"Вы пошли по легкому пути. Ну ладно. Вот вам 10 слов." \
+                                      f" И первой парой у нас будет: {words[0]} и {words[1]}"
+            change_buttons(GAME_WORDS, user_id, 0)
+            res['response']['buttons'] = get_suggests(user_id)
+            WAITING_FOR_ANSWER = True
+            WAITING_FOR_CHOOSE_DIFFICULTY = False
+            STARTED_GAME = True
+        elif req['request']['original_utterance'] == 'Средняя.':
+            start_game(user_id, 'medium')
+            words = random_words(GAME_WORDS, WORD_INDEX)
+            res['response'][
+                'text'] = f'У-у-у, а вы красаучик. Вот вам 20 слов. И первой парой у нас будет: {words[0]} и {words[1]}'
+            change_buttons(GAME_WORDS, user_id, 0)
+            res['response']['buttons'] = get_suggests(user_id)
+            WAITING_FOR_ANSWER = True
+            WAITING_FOR_CHOOSE_DIFFICULTY = False
+            STARTED_GAME = True
+        elif req['request']['original_utterance'] == 'Сложная.':
+            start_game(user_id, 'high')
+            words = random_words(GAME_WORDS, WORD_INDEX)
+            res['response'][
+                'text'] = f'А вы самоуверенный. Вот вам 30 слов. И первой парой у нас будет: {words[0]} и {words[1]}'
+            change_buttons(GAME_WORDS, user_id, 0)
+            res['response']['buttons'] = get_suggests(user_id)
+            WAITING_FOR_ANSWER = True
+            WAITING_FOR_CHOOSE_DIFFICULTY = False
+            STARTED_GAME = True
+        elif req['request']['original_utterance'] == 'Выйти из игры.':
+            res['response']['text'] = f'Слабак!'
+            STARTED_GAME = False
+            WAITING_FOR_ANSWER = False
+            WAITING_FOR_CHOOSE_DIFFICULTY = False
+            GAME_WORDS = []
+            FIRST_ANSWER = False
+            WORD_INDEX = 0
+            COUNT = 0
+            res['response']['end_session'] = True
+        return
     if not STARTED_GAME:
         if req['request']['original_utterance'].lower() == 'да.':
             # Пользователь согласился, прощаемся.
-            start_game(user_id)
-            words = random_words(GAME_WORDS, WORD_INDEX)
             res['response'][
-                'text'] = f"Отлично! Тогда начнем. И первой парой у нас будет: {words[0]} и {words[1]}"
-            change_buttons(GAME_WORDS, user_id, 0)
-            res['response']['buttons'] = get_suggests(user_id)
-            STARTED_GAME = True
-            WAITING_FOR_ANSWER = True
+                'text'] = 'Отлично! Для начала выберите сложность: легкая, средняя,' \
+                          ' тяжелая. Или вы можете выйти из игры.'
+            change_buttons(GAME_WORDS, user_id, 0, flag_difficulty=True)
+            res['response']['buttons'] = get_suggests(user_id, difficult_suggest=True)
+            WAITING_FOR_CHOOSE_DIFFICULTY = True
             return
         else:
             res['response'][
                 'text'] = f"Ну и пошел ты!"
+            STARTED_GAME = False
+            WAITING_FOR_ANSWER = False
+            WAITING_FOR_CHOOSE_DIFFICULTY = False
+            GAME_WORDS = []
+            FIRST_ANSWER = False
+            WORD_INDEX = 0
+            COUNT = 0
             res['response']['end_session'] = True
             return
     if STARTED_GAME:
@@ -191,15 +261,21 @@ def handle_dialog(req, res):
 
 
 # Функция возвращает две подсказки для ответа.
-def get_suggests(user_id):
+def get_suggests(user_id, difficult_suggest=False):
     global sessionStorage
     session = sessionStorage[user_id]
 
     # Выбираем две первые подсказки из массива.
-    suggests = [
-        {'title': suggest, 'hide': True}
-        for suggest in session['suggests'][:2]
-    ]
+    if not difficult_suggest:
+        suggests = [
+            {'title': suggest, 'hide': True}
+            for suggest in session['suggests'][:2]
+        ]
+    else:
+        suggests = [
+            {'title': suggest, 'hide': True}
+            for suggest in session['suggests'][:4]
+        ]
     sessionStorage = {}
     return suggests
 
