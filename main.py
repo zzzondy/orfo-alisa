@@ -80,9 +80,10 @@ def start_game(user_id, difficult):
         GAME_WORDS = [word for word in words]
         change_buttons(GAME_WORDS, user_id, WORD_INDEX, start_flag=True)
     else:
-        words = cursor.execute("""SELECT * FROM words ORDER BY RANDOM() LIMIT 30""").fetchall()
+        words = cursor.execute("""SELECT * FROM words ORDER BY RANDOM() LIMIT 25""").fetchall()
         GAME_WORDS = [word for word in words]
         change_buttons(GAME_WORDS, user_id, WORD_INDEX, start_flag=True)
+    print(len(GAME_WORDS))
 
 
 def smart_game_finish(difficulty, count):
@@ -98,7 +99,7 @@ def smart_game_finish(difficulty, count):
         return f"Ты набрал {count} очков. Это хорошо!"
     elif difficulty == 'medium' and 10 < count <= 17:
         return f"Ты набрал {count} очков. Это очень хорошо!"
-    elif difficulty == 'medium' and 17 < count <= 19:
+    elif difficulty == 'medium' and 17 < count <= 20:
         return f"Ты набрал {count} очков. Это офигенно!"
     elif difficulty == 'high' and count <= 5:
         return f"Ты набрал {count} очков. Это фигово."
@@ -110,9 +111,7 @@ def smart_game_finish(difficulty, count):
         return f"Ты набрал {count} очков. Это офигенно!"
     elif difficulty == 'high' and 19 < count <= 24:
         return f"Ты набрал {count} очков. Это замечательно!"
-    elif difficulty == 'high' and 24 < count <= 29:
-        return f"Ты набрал {count} очков. Это превосходно!"
-    elif difficulty == 'high' and count == 30:
+    elif difficulty == 'high' and count == 25:
         return f"Ты набрал {count} очков. Поздравляю, ты сдал ЕГЭ."
 
 
@@ -135,7 +134,6 @@ def random_words(words, index):
 
 def change_buttons(words, user_id, index, start_flag=False, flag_difficulty=False):
     global sessionStorage, GAME_WORDS
-    print(words)
     if flag_difficulty:
         sessionStorage[user_id] = {
             'suggests': [
@@ -146,7 +144,6 @@ def change_buttons(words, user_id, index, start_flag=False, flag_difficulty=Fals
         temp = [*words[index][1:]]
         random.shuffle(temp)
         random_buttons = temp[::]
-        print(random_buttons)
         sessionStorage[user_id] = {
             'suggests': [
                 random_buttons[0],
@@ -162,7 +159,7 @@ def change_buttons(words, user_id, index, start_flag=False, flag_difficulty=Fals
 
 
 def handle_dialog(req, res):
-    global STARTED_GAME, DIFFICULTY, WAITING_FOR_ANSWER, WORD_INDEX, COUNT, FIRST_ANSWER, WAITING_FOR_CHOOSE_DIFFICULTY,\
+    global STARTED_GAME, DIFFICULTY, WAITING_FOR_ANSWER, WORD_INDEX, COUNT, FIRST_ANSWER, WAITING_FOR_CHOOSE_DIFFICULTY, \
         GAME_WORDS
     user_id = req['session']['user_id']
 
@@ -221,7 +218,7 @@ def handle_dialog(req, res):
             start_game(user_id, 'high')
             words = random_words(GAME_WORDS, WORD_INDEX)
             res['response'][
-                'text'] = f'А вы самоуверенный. Вот вам 30 слов. И первой парой у нас будет: {words[0]} и {words[1]}'
+                'text'] = f'А вы самоуверенный. Вот вам 25 слов. И первой парой у нас будет: {words[0]} и {words[1]}'
             change_buttons(GAME_WORDS, user_id, 0)
             res['response']['buttons'] = get_suggests(user_id)
             WAITING_FOR_ANSWER = True
@@ -269,7 +266,8 @@ def handle_dialog(req, res):
                 try:
                     words = random_words(GAME_WORDS, WORD_INDEX)
                     res['response'][
-                        'text'] = f"Ты отгадал! Всего слов {len(GAME_WORDS)}. Твой счет: {COUNT}. Идем дальше: {words[0]} и" \
+                        'text'] = f"Ты отгадал! Всего слов {len(GAME_WORDS) - WORD_INDEX}. Твой счет: {COUNT}." \
+                                  f" Идем дальше: {words[0]} и" \
                                   f" {words[1]}"
                     change_buttons(GAME_WORDS, user_id, WORD_INDEX)
                     res['response']['buttons'] = get_suggests(user_id)
@@ -283,7 +281,8 @@ def handle_dialog(req, res):
                 try:
                     words = random_words(GAME_WORDS, WORD_INDEX)
                     res['response'][
-                        'text'] = f"Увы! Ты не удагал. Всего слов {len(GAME_WORDS)}. Твой счет: {COUNT}. Идем дальше: {words[0]} и" \
+                        'text'] = f"Увы! Ты не удагал. Всего слов {len(GAME_WORDS) - WORD_INDEX}. Твой счет: {COUNT}." \
+                                  f" Идем дальше: {words[0]} и" \
                                   f" {words[1]}"
                     change_buttons(GAME_WORDS, user_id, WORD_INDEX)
                     res['response']['buttons'] = get_suggests(user_id)
