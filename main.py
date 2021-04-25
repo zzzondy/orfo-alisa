@@ -73,28 +73,46 @@ def start_game(user_id):
     cursor = connection.cursor()
     words = cursor.execute("""SELECT * FROM words ORDER BY RANDOM() LIMIT 10""").fetchall()
     GAME_WORDS = [word for word in words]
-    sessionStorage[user_id] = {
-        'suggests': [
-            "Первый вариант правильный.",
-            'Второй вариант правильный.'
-        ]
-    }
+    change_buttons(GAME_WORDS, user_id, WORD_INDEX, start_flag=True)
 
 
-def check_answer(words, index, req):
-    if req['request']['original_utterance'] == words[index][1]:
-        return True
-    return False
+def check_answer(words, index, req, start_flag=False):
+    if not start_flag:
+        if req['request']['original_utterance'] == words[index][1]:
+            return True
+        return False
+    else:
+        if req['request']['original_utterance'].lower() == 'да.':
+            return True
+        return False
 
 
-def change_buttons(words, user_id, index):
-    random_buttons = random.shuffle([words[index][1:]])
-    sessionStorage[user_id] = {
-        'suggests': [
-            random_buttons[0],
-            random_buttons[1]
-        ]
-    }
+def random_words(words, index):
+    temp = [*words[index][1:]]
+    random.shuffle(temp)
+    return temp[::]
+
+
+def change_buttons(words, user_id, index, start_flag=False):
+    global sessionStorage, GAME_WORDS
+    print(words)
+    if not start_flag:
+        temp = [*words[index][1:]]
+        random.shuffle(temp)
+        random_buttons = temp[::]
+        print(random_buttons)
+        sessionStorage[user_id] = {
+            'suggests': [
+                random_buttons[0],
+                random_buttons[1]
+            ]
+        }
+    else:
+        sessionStorage[user_id] = {
+            'suggests': [
+                'Да.', 'Нет.'
+            ]
+        }
 
 
 def handle_dialog(req, res):
@@ -109,12 +127,7 @@ def handle_dialog(req, res):
         res['response'][
             'text'] = 'Привет! Ты попал на орфоэпическую игру и твоя задача как можно' \
                       ' больше раз угадать правильное произношение слов. Ты готов?'
-        sessionStorage[user_id] = {
-            'suggests': [
-                'Да.',
-                'Нет'
-            ]
-        }
+        change_buttons(GAME_WORDS, user_id, WORD_INDEX, start_flag=True)
         res['response']['buttons'] = get_suggests(user_id)
         return
 
@@ -130,9 +143,10 @@ def handle_dialog(req, res):
         if req['request']['original_utterance'].lower() == 'да.':
             # Пользователь согласился, прощаемся.
             start_game(user_id)
-            
+            words = random_words(GAME_WORDS, WORD_INDEX)
             res['response'][
-                'text'] = f"Отлично! Тогда начнем. И первой парой у нас будет: {GAME_WORDS[0][1]} и {GAME_WORDS[0][2]}"
+                'text'] = f"Отлично! Тогда начнем. И первой парой у нас будет: {words[0]} и {words[1]}"
+            change_buttons(GAME_WORDS, user_id, 0)
             res['response']['buttons'] = get_suggests(user_id)
             STARTED_GAME = True
             WAITING_FOR_ANSWER = True
@@ -144,16 +158,16 @@ def handle_dialog(req, res):
             return
     if STARTED_GAME:
         if WAITING_FOR_ANSWER:
-            if req['request']['original_utterance'].lower() in [
-                'первый вариант правильный.'
-            ]:
+            if check_answer(GAME_WORDS, WORD_INDEX, req):
                 WORD_INDEX += 1
                 COUNT += 1
                 try:
-                    print(WORD_INDEX)
+                    words = random_words(GAME_WORDS, WORD_INDEX)
                     res['response'][
-                        'text'] = f"Ты отгадал! Твой счет: {COUNT}. Идем дальше: {GAME_WORDS[WORD_INDEX][1]} и" \
-                                  f" {GAME_WORDS[WORD_INDEX][2]}"
+                        'text'] = f"Ты отгадал! Твой счет: {COUNT}. Идем дальше: {words[0]} и" \
+                                  f" {words[1]}"
+                    change_buttons(GAME_WORDS, user_id, WORD_INDEX)
+                    res['response']['buttons'] = get_suggests(user_id)
                 except IndexError:
                     res['response'][
                         'text'] = f"Ты отгадал все слова и победил!!! Мои поздравления."
@@ -162,9 +176,12 @@ def handle_dialog(req, res):
             else:
                 WORD_INDEX += 1
                 try:
+                    words = random_words(GAME_WORDS, WORD_INDEX)
                     res['response'][
-                        'text'] = f"Увы! Ты не удагал. Твой счет: {COUNT}. Идем дальше: {GAME_WORDS[WORD_INDEX][1]} и" \
-                                  f" {GAME_WORDS[WORD_INDEX][2]}"
+                        'text'] = f"Увы! Ты не удагал. Твой счет: {COUNT}. Идем дальше: {words[0]} и" \
+                                  f" {words[1]}"
+                    change_buttons(GAME_WORDS, user_id, WORD_INDEX)
+                    res['response']['buttons'] = get_suggests(user_id)
                 except IndexError:
                     res['response'][
                         'text'] = f"Ты отгадал все слова и победил!!! Мои поздравления."
@@ -175,6 +192,7 @@ def handle_dialog(req, res):
 
 # Функция возвращает две подсказки для ответа.
 def get_suggests(user_id):
+    global sessionStorage
     session = sessionStorage[user_id]
 
     # Выбираем две первые подсказки из массива.
@@ -182,6 +200,7 @@ def get_suggests(user_id):
         {'title': suggest, 'hide': True}
         for suggest in session['suggests'][:2]
     ]
+    sessionStorage = {}
     return suggests
 
 
