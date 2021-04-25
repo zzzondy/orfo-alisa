@@ -21,7 +21,7 @@ GAME_WORDS = []
 FIRST_ANSWER = False
 WORD_INDEX = 0
 COUNT = 0
-
+DIFFICULTY = None
 # Устанавливаем уровень логирования
 logging.basicConfig(level=logging.INFO)
 
@@ -85,6 +85,37 @@ def start_game(user_id, difficult):
         change_buttons(GAME_WORDS, user_id, WORD_INDEX, start_flag=True)
 
 
+def smart_game_finish(difficulty, count):
+    if difficulty == 'easy' and count <= 5:
+        return f"Ты набрал {count} очков. Это фигово."
+    elif difficulty == 'easy' and 5 < count <= 9:
+        return f"Ты набрал {count} очков. Это неплохо."
+    elif difficulty == 'easy' and count == 10:
+        return f"Ты набрал {count} очков. Это хорошо!!!"
+    elif difficulty == 'medium' and count <= 5:
+        return f"Ты набрал {count} очков. Это фигово."
+    elif difficulty == 'medium' and 5 < count <= 10:
+        return f"Ты набрал {count} очков. Это хорошо!"
+    elif difficulty == 'medium' and 10 < count <= 17:
+        return f"Ты набрал {count} очков. Это очень хорошо!"
+    elif difficulty == 'medium' and 17 < count <= 19:
+        return f"Ты набрал {count} очков. Это офигенно!"
+    elif difficulty == 'high' and count <= 5:
+        return f"Ты набрал {count} очков. Это фигово."
+    elif difficulty == 'high' and 5 < count <= 10:
+        return f"Ты набрал {count} очков. Это хорошо!"
+    elif difficulty == 'high' and 10 < count <= 17:
+        return f"Ты набрал {count} очков. Это очень хорошо!"
+    elif difficulty == 'high' and 17 < count <= 19:
+        return f"Ты набрал {count} очков. Это офигенно!"
+    elif difficulty == 'high' and 19 < count <= 24:
+        return f"Ты набрал {count} очков. Это замечательно!"
+    elif difficulty == 'high' and 24 < count <= 29:
+        return f"Ты набрал {count} очков. Это превосходно!"
+    elif difficulty == 'high' and count == 30:
+        return f"Ты набрал {count} очков. Поздравляю, ты сдал ЕГЭ."
+
+
 def check_answer(words, index, req, start_flag=False):
     if not start_flag:
         if req['request']['original_utterance'] == words[index][1]:
@@ -131,7 +162,8 @@ def change_buttons(words, user_id, index, start_flag=False, flag_difficulty=Fals
 
 
 def handle_dialog(req, res):
-    global STARTED_GAME, WAITING_FOR_ANSWER, WORD_INDEX, COUNT, FIRST_ANSWER, WAITING_FOR_CHOOSE_DIFFICULTY, GAME_WORDS
+    global STARTED_GAME, DIFFICULTY, WAITING_FOR_ANSWER, WORD_INDEX, COUNT, FIRST_ANSWER, WAITING_FOR_CHOOSE_DIFFICULTY,\
+        GAME_WORDS
     user_id = req['session']['user_id']
 
     if req['session']['new']:
@@ -173,6 +205,7 @@ def handle_dialog(req, res):
             WAITING_FOR_ANSWER = True
             WAITING_FOR_CHOOSE_DIFFICULTY = False
             STARTED_GAME = True
+            DIFFICULTY = 'easy'
         elif req['request']['original_utterance'] == 'Средняя.':
             start_game(user_id, 'medium')
             words = random_words(GAME_WORDS, WORD_INDEX)
@@ -183,6 +216,7 @@ def handle_dialog(req, res):
             WAITING_FOR_ANSWER = True
             WAITING_FOR_CHOOSE_DIFFICULTY = False
             STARTED_GAME = True
+            DIFFICULTY = 'medium'
         elif req['request']['original_utterance'] == 'Сложная.':
             start_game(user_id, 'high')
             words = random_words(GAME_WORDS, WORD_INDEX)
@@ -193,6 +227,7 @@ def handle_dialog(req, res):
             WAITING_FOR_ANSWER = True
             WAITING_FOR_CHOOSE_DIFFICULTY = False
             STARTED_GAME = True
+            DIFFICULTY = 'high'
         elif req['request']['original_utterance'] == 'Выйти из игры.':
             res['response']['text'] = f'Слабак!'
             STARTED_GAME = False
@@ -234,13 +269,13 @@ def handle_dialog(req, res):
                 try:
                     words = random_words(GAME_WORDS, WORD_INDEX)
                     res['response'][
-                        'text'] = f"Ты отгадал! Твой счет: {COUNT}. Идем дальше: {words[0]} и" \
+                        'text'] = f"Ты отгадал! Всего слов {len(GAME_WORDS)}. Твой счет: {COUNT}. Идем дальше: {words[0]} и" \
                                   f" {words[1]}"
                     change_buttons(GAME_WORDS, user_id, WORD_INDEX)
                     res['response']['buttons'] = get_suggests(user_id)
                 except IndexError:
                     res['response'][
-                        'text'] = f"Ты отгадал все слова и победил!!! Мои поздравления."
+                        'text'] = smart_game_finish(DIFFICULTY, COUNT)
                     STARTED_GAME = False
                     res['response']['end_session'] = True
             else:
@@ -248,13 +283,13 @@ def handle_dialog(req, res):
                 try:
                     words = random_words(GAME_WORDS, WORD_INDEX)
                     res['response'][
-                        'text'] = f"Увы! Ты не удагал. Твой счет: {COUNT}. Идем дальше: {words[0]} и" \
+                        'text'] = f"Увы! Ты не удагал. Всего слов {len(GAME_WORDS)}. Твой счет: {COUNT}. Идем дальше: {words[0]} и" \
                                   f" {words[1]}"
                     change_buttons(GAME_WORDS, user_id, WORD_INDEX)
                     res['response']['buttons'] = get_suggests(user_id)
                 except IndexError:
                     res['response'][
-                        'text'] = f"Ты отгадал все слова и победил!!! Мои поздравления."
+                        'text'] = smart_game_finish(DIFFICULTY, COUNT)
                     STARTED_GAME = False
                     res['response']['end_session'] = True
     return
