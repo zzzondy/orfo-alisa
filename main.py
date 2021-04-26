@@ -1,3 +1,5 @@
+"""ИЗ-ЗА НЕКОТОРЫХ ОСОБЕННОСТЕЙ АЛИСЫ МОГУТ ВЫСКАКИВАТЬ ОШИБКИ НА СТОРОНЕ АЛИСЫ, НАПРИМЕР СЛИШКОМ ЧАСТЫЕ ЗАПРОСЫ.
+ЭТИХ ОШИБОК В КОДЕ НЕТ И ОНИ НЕ ПОКАЗЫВАЮТСЯ."""
 # импортируем библиотеки
 from flask import Flask, request
 import logging
@@ -121,7 +123,8 @@ def smart_game_finish(difficulty, count):
 def check_answer(words, index, req, start_flag=False):
     """Функция для проверки ответа на вопрос Алисы. Если start_flag=True - проверяется ответ на первый вопрос
      (будет ли пользователь играть)"""
-    if req['request']['original_utterance'] != words[index][1] and req['request']['original_utterance'] != words[index][2]:
+    if req['request']['original_utterance'] != words[index][1] and req['request']['original_utterance'] != words[index][
+        2]:
         return 'Не понимаю'
     if not start_flag:
         if req['request']['original_utterance'] == words[index][1]:
@@ -141,6 +144,7 @@ def random_words(words, index):
 
 
 def change_buttons(words, user_id, index, start_flag=False, flag_difficulty=False):
+    """Меняет кнопки в зависимости от диалога."""
     global sessionStorage, GAME_WORDS
     if flag_difficulty:
         sessionStorage[user_id] = {
@@ -167,11 +171,16 @@ def change_buttons(words, user_id, index, start_flag=False, flag_difficulty=Fals
 
 
 def handle_dialog(req, res):
+    """Функция поддержания диалога. Самая важная в проекте."""
     global STARTED_GAME, DIFFICULTY, WAITING_FOR_ANSWER, WORD_INDEX, COUNT, FIRST_ANSWER, WAITING_FOR_CHOOSE_DIFFICULTY, \
         GAME_WORDS
     user_id = req['session']['user_id']
 
     if req['session']['new']:
+        # Это новый пользователь.
+        # Инициализируем сессию и поприветствуем его.
+        # Запишем подсказки, которые мы ему покажем в первый раз
+        # Заполняем текст ответа
         STARTED_GAME = False
         WAITING_FOR_ANSWER = False
         WAITING_FOR_CHOOSE_DIFFICULTY = False
@@ -179,10 +188,6 @@ def handle_dialog(req, res):
         FIRST_ANSWER = False
         WORD_INDEX = 0
         COUNT = 0
-        # Это новый пользователь.
-        # Инициализируем сессию и поприветствуем его.
-        # Запишем подсказки, которые мы ему покажем в первый раз
-        # Заполняем текст ответа
 
         res['response'][
             'text'] = 'Привет! Ты попал на орфоэпическую игру и твоя задача как можно' \
@@ -196,10 +201,8 @@ def handle_dialog(req, res):
     # Обрабатываем ответ пользователя.
     # В req['request']['original_utterance'] лежит весь текст,
     # что нам прислал пользователь
-    # Если он написал 'ладно', 'куплю', 'покупаю', 'хорошо',
-    # то мы считаем, что пользователь согласился.
-    # Подумайте, всё ли в этом фрагменте написано "красиво"?
     if WAITING_FOR_CHOOSE_DIFFICULTY:
+        # если сейчас выполняется спрашивание сложности, то работает этот блок
         if req['request']['original_utterance'] == 'Легкая.':
             start_game(user_id, 'easy')
             words = random_words(GAME_WORDS, WORD_INDEX)
@@ -249,8 +252,9 @@ def handle_dialog(req, res):
             res['response']['buttons'] = get_suggests(user_id, difficult_suggest=True)
         return
     if not STARTED_GAME:
+        # пока игра не начата
         if req['request']['original_utterance'].lower() == 'да.':
-            # Пользователь согласился, прощаемся.
+            # если пользователь ответит на первый вопрос да.
             res['response'][
                 'text'] = 'Отлично! Для начала выберите сложность: легкая, средняя,' \
                           ' тяжелая. Или вы можете выйти из игры.'
@@ -259,6 +263,7 @@ def handle_dialog(req, res):
             WAITING_FOR_CHOOSE_DIFFICULTY = True
             return
         else:
+            # или что-то другое
             res['response'][
                 'text'] = f"Ну и пошел ты!"
             STARTED_GAME = False
@@ -271,18 +276,21 @@ def handle_dialog(req, res):
             res['response']['end_session'] = True
             return
     if STARTED_GAME:
+        # если игра уже началась
         if WAITING_FOR_ANSWER:
             if check_answer(GAME_WORDS, WORD_INDEX, req) == 'Не понимаю':
-                print(1)
+                # если Алиса не понимает что сказал пользователь
                 res['response'][
                     'text'] = f"Извините, я вас не понимаю, попробуйте еще раз."
                 change_buttons(GAME_WORDS, user_id, WORD_INDEX)
                 res['response']['buttons'] = get_suggests(user_id)
                 return
             if check_answer(GAME_WORDS, WORD_INDEX, req):
+                # если ответ правильный
                 WORD_INDEX += 1
                 COUNT += 1
                 try:
+                    # если это не последнее слово
                     words = random_words(GAME_WORDS, WORD_INDEX)
                     res['response'][
                         'text'] = f"Ты отгадал! Всего слов {len(GAME_WORDS) - WORD_INDEX}. Твой счет: {COUNT}." \
@@ -291,13 +299,16 @@ def handle_dialog(req, res):
                     change_buttons(GAME_WORDS, user_id, WORD_INDEX)
                     res['response']['buttons'] = get_suggests(user_id)
                 except IndexError:
+                    # если это последнее слова - конец игры.
                     res['response'][
                         'text'] = smart_game_finish(DIFFICULTY, COUNT)
                     STARTED_GAME = False
                     res['response']['end_session'] = True
             else:
+                # если пользователь ответил неправильно
                 WORD_INDEX += 1
                 try:
+                    # если это не последнее слово
                     words = random_words(GAME_WORDS, WORD_INDEX)
                     res['response'][
                         'text'] = f"Увы! Ты не удагал. Всего слов {len(GAME_WORDS) - WORD_INDEX}. Твой счет: {COUNT}." \
@@ -306,6 +317,7 @@ def handle_dialog(req, res):
                     change_buttons(GAME_WORDS, user_id, WORD_INDEX)
                     res['response']['buttons'] = get_suggests(user_id)
                 except IndexError:
+                    # если это последнее слова - конец игры.
                     res['response'][
                         'text'] = smart_game_finish(DIFFICULTY, COUNT)
                     STARTED_GAME = False
@@ -313,12 +325,12 @@ def handle_dialog(req, res):
     return
 
 
-# Функция возвращает две подсказки для ответа.
 def get_suggests(user_id, difficult_suggest=False):
+    """Функция возращает подсказки из массива в зависимости от ситуации."""
     global sessionStorage
     session = sessionStorage[user_id]
 
-    # Выбираем две первые подсказки из массива.
+    # Выбираем подсказки из массива.
     if not difficult_suggest:
         suggests = [
             {'title': suggest, 'hide': True}
