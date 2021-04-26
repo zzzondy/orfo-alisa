@@ -43,6 +43,7 @@ sessionStorage = {}
 # Внутри функции доступен request.json - это JSON,
 # который отправила нам Алиса в запросе POST
 def main():
+    """Главная функция для работы с Алисой."""
     logging.info(f'Request: {request.json!r}')
 
     # Начинаем формировать ответ, согласно документации
@@ -68,6 +69,7 @@ def main():
 
 
 def start_game(user_id, difficult):
+    """Функция которая создает новую игру."""
     global GAME_WORDS
     connection = sqlite3.connect('data/words.db')
     cursor = connection.cursor()
@@ -87,6 +89,7 @@ def start_game(user_id, difficult):
 
 
 def smart_game_finish(difficulty, count):
+    """Функция умного конца игры. Учитывается сложность игры и количество набранных очков."""
     if difficulty == 'easy' and count <= 5:
         return f"Ты набрал {count} очков. Это фигово."
     elif difficulty == 'easy' and 5 < count <= 9:
@@ -116,6 +119,10 @@ def smart_game_finish(difficulty, count):
 
 
 def check_answer(words, index, req, start_flag=False):
+    """Функция для проверки ответа на вопрос Алисы. Если start_flag=True - проверяется ответ на первый вопрос
+     (будет ли пользователь играть)"""
+    if req['request']['original_utterance'] != words[index][1] and req['request']['original_utterance'] != words[index][2]:
+        return 'Не понимаю'
     if not start_flag:
         if req['request']['original_utterance'] == words[index][1]:
             return True
@@ -127,6 +134,7 @@ def check_answer(words, index, req, start_flag=False):
 
 
 def random_words(words, index):
+    """Перемешивает слова, чтобы привлекательно выводились подсказки и слова для выбора."""
     temp = [*words[index][1:]]
     random.shuffle(temp)
     return temp[::]
@@ -235,6 +243,10 @@ def handle_dialog(req, res):
             WORD_INDEX = 0
             COUNT = 0
             res['response']['end_session'] = True
+        else:
+            res['response']['text'] = f'Не понимаю. Попробуйте еще раз.'
+            change_buttons(GAME_WORDS, user_id, 0, flag_difficulty=True)
+            res['response']['buttons'] = get_suggests(user_id, difficult_suggest=True)
         return
     if not STARTED_GAME:
         if req['request']['original_utterance'].lower() == 'да.':
@@ -260,6 +272,13 @@ def handle_dialog(req, res):
             return
     if STARTED_GAME:
         if WAITING_FOR_ANSWER:
+            if check_answer(GAME_WORDS, WORD_INDEX, req) == 'Не понимаю':
+                print(1)
+                res['response'][
+                    'text'] = f"Извините, я вас не понимаю, попробуйте еще раз."
+                change_buttons(GAME_WORDS, user_id, WORD_INDEX)
+                res['response']['buttons'] = get_suggests(user_id)
+                return
             if check_answer(GAME_WORDS, WORD_INDEX, req):
                 WORD_INDEX += 1
                 COUNT += 1
@@ -282,7 +301,7 @@ def handle_dialog(req, res):
                     words = random_words(GAME_WORDS, WORD_INDEX)
                     res['response'][
                         'text'] = f"Увы! Ты не удагал. Всего слов {len(GAME_WORDS) - WORD_INDEX}. Твой счет: {COUNT}." \
-                                  f" Идем дальше: {words[0]} и" \
+                                  f"     Идем дальше: {words[0]} и" \
                                   f" {words[1]}"
                     change_buttons(GAME_WORDS, user_id, WORD_INDEX)
                     res['response']['buttons'] = get_suggests(user_id)
