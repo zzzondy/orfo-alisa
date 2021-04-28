@@ -25,7 +25,7 @@ WORD_INDEX = 0
 COUNT = 0
 DIFFICULTY = None
 # Устанавливаем уровень логирования
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 
 # Создадим словарь, чтобы для каждой сессии общения
 # с навыком хранились подсказки, которые видел пользователь.
